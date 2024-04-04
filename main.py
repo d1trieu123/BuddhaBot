@@ -1,50 +1,71 @@
 from typing import Final
 import os
 from dotenv import load_dotenv
-from discord import Intents, Client, Message
-from responses import get_response
+from discord import Intents
+from discord.ext import commands
+from random import randint
+from slots import play_slots
+import asyncio 
+from discord.ext.commands import Context
 
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN')
-print(TOKEN)
 
-intents: Intents = Intents.default()
-intents.message_content = True  # NOQA
+intents = Intents.default()
+intents.message_content = True
 
-client: Client = Client(intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
 
+@bot.command(name='pong')
+async def ping(ctx):
+    await ctx.send('Ping!')
+@bot.command(name='hello')
+async def hello(ctx):
+    await ctx.send('Hello there!')
+@bot.command(name='roll_dice')
+async def roll_dice(ctx):
+    await ctx.send(f'You rolled: {randint(1, 6)}')
+@bot.command(name='slots')
+async def slots(ctx):
+    await ctx.send(play_slots())
+@bot.command(name='zoom')
+async def zoom(ctx):
+    await ctx.send('https://ucsd.zoom.us/j/97779724320')
 
-async def send_message(message: Message, user_message: str) -> None:
-    if not user_message:
-        print('(Message was empty because intents were not enabled)')
-        return
-    if is_private := user_message[0] == '?':
-        user_message = user_message[1:]
+@bot.command(name='whisper')
+async def whisper(ctx, *, message: str = "This is a secret message..."):
+    try:
+        await ctx.author.send(message)
+        await ctx.message.add_reaction("✉️")  
+    except Exception as e:
+        print(f"Error sending DM: {e}")
+        await ctx.send(f"Couldn't send a whisper to you. Do you have DMs disabled for non-friends?")
+
+@bot.command(name='trivia')
+async def trivia(ctx: Context):
+    await ctx.send('What is the capital of France?')
+
+    def check(m):
+        return m.channel == ctx.channel and not m.author.bot
 
     try:
-        response: str = get_response(user_message)
-        await message.author.send(response) if is_private else await message.channel.send(response)
-    except Exception as e:
-        print(e)
+        while True:
+            msg = await bot.wait_for('message', check=check, timeout=30.0)  # Wait for a message for 30 seconds
+            if msg.content.lower() == 'paris':
+                await ctx.send('Correct!')
+                break  # Exit the loop if the answer is correct
+            else:
+                await ctx.send('Incorrect, try again!')
 
+    except asyncio.TimeoutError:
+        await ctx.send('Sorry, time is up! The correct answer was Paris.')
 
-@client.event
-async def on_ready() -> None:
-    print(f'{client.user} is now running!')
+@bot.event
+async def on_ready():
+    print(f'{bot.user} is now running!')
 
-@client.event
-async def on_message(message: Message) -> None:
-    if message.author == client.user:
-        return
-    username : str = str(message.author)
-    user_message: str = message.content
-    channel: str = str(message.channel)
-
-    print(f'[{channel}] {username}: "{user_message}"')
-    await send_message(message, user_message)
-
-def main() -> None:
-    client.run(token=TOKEN)
+def main():
+    bot.run(TOKEN)
 
 if __name__ == '__main__':
     main()
